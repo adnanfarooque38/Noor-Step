@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Noor Step – Professional Spiritual Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Outfit:wght@300;600;900&display=swap" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+
+    <style>
+        :root { --primary: #081c15; --accent: #d4a373; --bg: #f8fafc; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); margin: 0; padding: 10px; font-size: 13px; color: #1e293b; }
+        .wrapper { max-width: 480px; margin: 0 auto; background: white; border-radius: 25px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.1); }
+        .hidden { display: none; }
+        
+        /* Auth Styles */
+        .auth-card { padding: 30px; text-align: center; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 14px; background: var(--primary); color: white; border: none; border-radius: 10px; font-weight: 800; cursor: pointer; }
+        
+        /* Dashboard Styles */
+        .header { background: var(--primary); color: white; padding: 25px 15px; text-align: center; border-bottom: 5px solid var(--accent); }
+        .header h1 { margin: 0; font-size: 1.8rem; font-weight: 900; color: var(--accent); }
+        .streak-dashboard { margin: 15px; padding: 15px; background: linear-gradient(135deg, #081c15, #1b4332); border-radius: 15px; color: white; }
+        .stat-box { flex: 1; background: rgba(255,255,255,0.08); padding: 10px; border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.1); }
+        
+        /* Prayer Cards */
+        .prayer-card { margin: 12px; border-radius: 18px; padding: 15px; color: white; box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+        .prayer-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.2); margin-bottom: 12px; padding-bottom: 5px; }
+        .seq-badge { background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; border: 1px solid rgba(255,255,255,0.2); }
+        
+        .row { background: rgba(255,255,255,0.1); padding: 10px; border-radius: 10px; margin-bottom: 8px; }
+        .btns { display: flex; gap: 8px; }
+        .btn { flex: 1; padding: 8px; border: none; border-radius: 8px; font-weight: 800; cursor: pointer; background: white; }
+        .active-yes { background: #2ecc71 !important; color: white !important; }
+        .active-no { background: #e74c3c !important; color: white !important; }
+
+        /* Report Gradient Boxes */
+        .report-box { margin: 15px; padding: 18px; border-radius: 15px; color: white; text-align: center; cursor: pointer; transition: 0.3s; }
+        .w-box { background: linear-gradient(135deg, #576574, #222f3e); border-left: 5px solid #bdc3c7; }
+        .m-box { background: linear-gradient(135deg, #0f4c5c, #081c15); border-left: 5px solid var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div id="authPanel" class="auth-card">
+        <h2 id="authTitle">Create Account</h2>
+        <input type="text" id="userName" placeholder="Full Name">
+        <input type="email" id="userEmail" placeholder="Email Address">
+        <input type="password" id="userPass" placeholder="Password (min 6 chars)">
+        <button class="btn-main" id="authBtn" onclick="handleAuth()">Register Now</button>
+        <p id="toggleText" onclick="toggleAuth()" style="cursor:pointer; color: #3498db; margin-top:15px;">Already have an account? Login</p>
+    </div>
+
+    <div id="mainDashboard" class="hidden">
+        <div class="header">
+            <h1 id="welcomeUser">NOOR STEP</h1>
+            <p id="dateDisplay">--/--/----</p>
+            <button onclick="logOut()" style="background:none; border:1px solid white; color:white; padding:4px 10px; border-radius:5px; margin-top:10px; cursor:pointer;">Logout</button>
+        </div>
+
+        <div class="streak-dashboard">
+            <div style="display: flex; gap: 10px;">
+                <div class="stat-box"><b id="compCount">0</b><span style="display:block; font-size:10px;">Completed</span></div>
+                <div class="stat-box"><b id="missCount">5</b><span style="display:block; font-size:10px;">Remaining</span></div>
+            </div>
+        </div>
+
+        <div id="prayerCardsArea"></div>
+
+        <div class="report-box w-box" onclick="generatePDF(7)">
+            <h4>Download Weekly Report</h4>
+            <p>PDF for last 7 days</p>
+        </div>
+        <div class="report-box m-box" onclick="generatePDF(30)">
+            <h4>Download Monthly Report</h4>
+            <p>Full spiritual tracking history</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Your provided Config
+    const firebaseConfig = {
+        apiKey: "AIzaSyAccio93Z9MmRBg2aaPo9oOaauA5Amc8CQ",
+        authDomain: "noor-step.firebaseapp.com",
+        projectId: "noor-step",
+        storageBucket: "noor-step.firebasestorage.app",
+        messagingSenderId: "702151099175",
+        appId: "1:702151099175:web:3c70ac981d2620cad09f02"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let isLoginMode = false;
+    let currentUser = null;
+    const todayKey = new Date().toISOString().split('T')[0];
+
+    function toggleAuth() {
+        isLoginMode = !isLoginMode;
+        document.getElementById('authTitle').innerText = isLoginMode ? "Welcome Back" : "Create Account";
+        document.getElementById('userName').classList.toggle('hidden', isLoginMode);
+        document.getElementById('authBtn').innerText = isLoginMode ? "Login" : "Register Now";
+        document.getElementById('toggleText').innerText = isLoginMode ? "New user? Create Account" : "Already have an account? Login";
+    }
+
+    async function handleAuth() {
+        const email = document.getElementById('userEmail').value;
+        const pass = document.getElementById('userPass').value;
+        const name = document.getElementById('userName').value;
+
+        try {
+            if (isLoginMode) {
+                await auth.signInWithEmailAndPassword(email, pass);
+            } else {
+                const res = await auth.createUserWithEmailAndPassword(email, pass);
+                await db.collection('users').doc(res.user.uid).set({ fullName: name, email: email });
+            }
+        } catch (e) { alert(e.message); }
+    }
+
+    function logOut() { auth.signOut(); location.reload(); }
+
+    auth.onAuthStateChanged(user => {
+        if (user) {
+            currentUser = user;
+            document.getElementById('authPanel').classList.add('hidden');
+            document.getElementById('mainDashboard').classList.remove('hidden');
+            document.getElementById('dateDisplay').innerText = "📅 " + new Date().toLocaleDateString('en-GB', {day:'2-digit', month:'long', year:'numeric'});
+            loadUserData();
+        }
+    });
+
+    const prayerConfig = [
+        { id: 'fajr', name: 'Fajr', theme: 'linear-gradient(135deg, #2c3e50, #4ca1af)' },
+        { id: 'dhuhr', name: 'Dhuhr', theme: 'linear-gradient(135deg, #134e5e, #71b280)' },
+        { id: 'asr', name: 'Asr', theme: 'linear-gradient(135deg, #ba8b02, #181818)' },
+        { id: 'maghrib', name: 'Maghrib', theme: 'linear-gradient(135deg, #870000, #190a05)' },
+        { id: 'isha', name: 'Isha', theme: 'linear-gradient(135deg, #0f0c29, #302b63)' }
+    ];
+
+    async function loadUserData() {
+        const userDoc = await db.collection('users').doc(currentUser.uid).get();
+        document.getElementById('welcomeUser').innerText = "NOOR: " + userDoc.data().fullName.toUpperCase();
+        
+        const area = document.getElementById('prayerCardsArea');
+        area.innerHTML = '';
+        
+        const daySnap = await db.collection('users').doc(currentUser.uid).collection('days').doc(todayKey).get();
+        const dayData = daySnap.exists ? daySnap.data() : {};
+
+        prayerConfig.forEach((p, i) => {
+            const card = document.createElement('div');
+            card.className = 'prayer-card';
+            card.style.background = p.theme;
+            card.innerHTML = `
+                <div class="prayer-header">
+                    <h3>${p.name}</h3> <span class="seq-badge">${i+1}/5</span>
+                </div>
+                <div class="row">
+                    <span style="display:block; margin-bottom:5px;">Prayed Namaz?</span>
+                    <div class="btns">
+                        <button class="btn ${dayData[p.id]?.namaz === 'yes' ? 'active-yes' : ''}" onclick="saveData('${p.id}','namaz','yes')">Yes</button>
+                        <button class="btn ${dayData[p.id]?.namaz === 'no' ? 'active-no' : ''}" onclick="saveData('${p.id}','namaz','no')">No</button>
+                    </div>
+                </div>
+            `;
+            area.appendChild(card);
+        });
+        updateStats(dayData);
+    }
+
+    async function saveData(pid, type, val) {
+        const ref = db.collection('users').doc(currentUser.uid).collection('days').doc(todayKey);
+        await ref.set({ [pid]: { [type]: val } }, { merge: true });
+        loadUserData();
+    }
+
+    function updateStats(data) {
+        let done = 0;
+        prayerConfig.forEach(p => { if(data[p.id]?.namaz === 'yes') done++; });
+        document.getElementById('compCount').innerText = done;
+        document.getElementById('missCount').innerText = 5 - done;
+    }
+
+    async function generatePDF(days) {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("Noor Step Progress Report", 14, 20);
+        // Additional Logic for report generation...
+        doc.save(`NoorStep_Report.pdf`);
+    }
+</script>
+</body>
+</html>
